@@ -16,7 +16,7 @@ class DicomSRTreeView(QWidget):
         """DicomSRTreeView 클래스 초기화"""
         super().__init__(parent)
         self.tree_widget = QTreeWidget()
-        self.tree_widget.setHeaderLabels(["항목", "값"])
+        self.tree_widget.setHeaderLabels(["값", "항목"])
         self.tree_widget.setColumnWidth(0, 300)
         
         # 레이아웃 설정
@@ -76,12 +76,12 @@ class DicomSRTreeView(QWidget):
             
             # 관계 정보가 있으면 표시
             relationship = child.get('relationship', '')
-            display_text = f"{node_type}"
+            NodeType = f"{node_type}"
             if relationship:
-                display_text = f"{relationship}: {display_text}"
+                NodeType = f"{relationship}: {NodeType}"
             
-            item.setText(0, display_text)
-            item.setText(1, str(node_value))
+            item.setText(0, str(node_value))
+            item.setText(1, NodeType)
             
             # 노드 ID와 트리 아이템 연결
             self.node_data[id(item)] = child

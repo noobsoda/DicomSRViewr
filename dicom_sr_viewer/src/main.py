@@ -185,7 +185,7 @@ class DicomSRViewer(QMainWindow):
         details = f"<h3>노드 정보</h3>"
         
         if 'type' in node_data:
-            details += f"<p><b>타입:</b> {node_data['type']}</p>"
+            details += f"<p><b>ValueType:</b> {node_data['type']}</p>"
         
         if 'value' in node_data:
             details += f"<p><b>값:</b> {node_data['value']}</p>"
@@ -195,6 +195,24 @@ class DicomSRViewer(QMainWindow):
         
         if 'id' in node_data:
             details += f"<p><b>ID:</b> {node_data['id']}</p>"
+            
+        if 'CodeMeaning' in node_data:
+            details += f"<p><b>CodeMeaning:</b> {node_data['CodeMeaning']}</p>"
+            
+        if 'CodeValue' in node_data:
+            details += f"<p><b>CodeValue:</b> {node_data['CodeValue']}</p>"
+            
+        if 'CodingSchemeDesignator' in node_data:
+            details += f"<p><b>CodingSchemeDesignator:</b> {node_data['CodingSchemeDesignator']}</p>"
+            
+        if 'UnitCodeMeaning' in node_data:
+            details += f"<p><b>UnitCodeMeaning:</b> {node_data['UnitCodeMeaning']}</p>"
+            
+        if 'UnitCodeValue' in node_data:
+            details += f"<p><b>UnitCodeValue:</b> {node_data['UnitCodeValue']}</p>"
+            
+        if 'UnitCodingSchemeDesignator' in node_data:
+            details += f"<p><b>UnitCodingSchemeDesignator:</b> {node_data['UnitCodingSchemeDesignator']}</p>"
         
         # 자식 노드 수 표시
         children_count = len(node_data.get('children', []))

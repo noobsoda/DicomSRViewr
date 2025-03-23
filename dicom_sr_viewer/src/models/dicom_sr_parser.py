@@ -108,18 +108,28 @@ class DicomSRParser:
             elif content_item.ValueType == 'CODE':
                 if hasattr(content_item, 'ConceptNameCodeSequence'):
                     code_seq = content_item.ConceptNameCodeSequence[0]
-                    node['value'] = f"{code_seq.CodeMeaning} ({code_seq.CodeValue})"
+                    node['value'] = f"{code_seq.CodeMeaning} ({code_seq.CodeValue} {code_seq.CodingSchemeDesignator})"
             elif content_item.ValueType == 'NUM':
                 if hasattr(content_item, 'MeasuredValueSequence'):
                     measured_value = content_item.MeasuredValueSequence[0]
                     if hasattr(measured_value, 'NumericValue'):
                         node['value'] = measured_value.NumericValue
+                    if hasattr(measured_value, 'MeasurementUnitsCodeSequence'):
+                        unit_code = measured_value.MeasurementUnitsCodeSequence[0]
+                        node['UnitCodeMeaning'] = f"{unit_code.CodeMeaning}"
+                        node['UnitCodeValue'] = f"{unit_code.CodeValue}"
+                        node['UnitCodingSchemeDesignator'] = f"{unit_code.CodingSchemeDesignator}"
             elif content_item.ValueType == 'CONTAINER':
                 if hasattr(content_item, 'ConceptNameCodeSequence'):
                     code_seq = content_item.ConceptNameCodeSequence[0]
-                    node['value'] = code_seq.CodeMeaning
+                    node['value'] = f"{code_seq.CodeMeaning} ({code_seq.CodeValue} {code_seq.CodingSchemeDesignator})"
             else:
                 node['value'] = f"ValueType: {content_item.ValueType}"
+            if hasattr(content_item, 'ConceptNameCodeSequence'):
+                code_seq = content_item.ConceptNameCodeSequence[0]
+                node['CodeMeaning'] = f"{code_seq.CodeMeaning}"
+                node['CodeValue'] = f"{code_seq.CodeValue}"
+                node['CodingSchemeDesignator'] = f"{code_seq.CodingSchemeDesignator}"
         else:
             node['type'] = 'UNKNOWN'
             node['value'] = 'Unknown content item'
