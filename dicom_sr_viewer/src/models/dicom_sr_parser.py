@@ -46,21 +46,27 @@ class DicomSRParser:
             return None
         
         try:
-            # DICOM SR 문서의 루트 노드 생성
-            self.tree = {
-                'id': 'root',
-                'type': 'root',
-                'value': 'DICOM SR Document',
-                'children': []
-            }
-            
             # Content Sequence가 있는지 확인
             if hasattr(self.dataset, 'ContentSequence'):
-                self._parse_content_sequence(self.dataset.ContentSequence, self.tree['children'])
+                if len(self.dataset.ContentSequence) > 0:
+                    # 첫 번째 ContentItem을 루트 노드로 사용
+                    root_node = self._create_node_from_content_item(self.dataset.ContentSequence[0], 0)
+                    if isinstance(root_node, list):
+                        root_node = root_node[0]
+                    
+                    # 루트 노드의 ContentSequence가 있는 경우 파싱
+                    if hasattr(self.dataset.ContentSequence[0], 'ContentSequence'):
+                        self._parse_content_sequence(self.dataset.ContentSequence[0].ContentSequence, root_node['children'])
+                    
+                    self.tree = root_node
+                    return self.tree
+                else:
+                    self.logger.warning("ContentSequence가 비어있습니다.")
+                    return None
             else:
                 self.logger.warning("ContentSequence를 찾을 수 없습니다. SR 문서가 아닐 수 있습니다.")
-            
-            return self.tree
+                return None
+                
         except Exception as e:
             self.logger.error(f"SR 파싱 중 오류 발생: {e}")
             return None
@@ -97,48 +103,89 @@ class DicomSRParser:
             'children': []
         }
         
-        # ValueType에 따라 노드 정보 설정
-        if hasattr(content_item, 'ValueType'):
-            node['type'] = content_item.ValueType
+        if not hasattr(content_item, 'ValueType'):
+            node.update({
+                'type': 'UNKNOWN',
+                'value': 'Unknown content item'
+            })
+            return node
             
-            # ValueType에 따라 값 추출
-            if content_item.ValueType == 'TEXT':
-                if hasattr(content_item, 'TextValue'):
-                    node['value'] = content_item.TextValue
-            elif content_item.ValueType == 'CODE':
-                if hasattr(content_item, 'ConceptNameCodeSequence'):
-                    code_seq = content_item.ConceptNameCodeSequence[0]
-                    node['value'] = f"{code_seq.CodeMeaning} ({code_seq.CodeValue} {code_seq.CodingSchemeDesignator})"
-            elif content_item.ValueType == 'NUM':
-                if hasattr(content_item, 'MeasuredValueSequence'):
-                    measured_value = content_item.MeasuredValueSequence[0]
-                    if hasattr(measured_value, 'NumericValue'):
-                        node['value'] = measured_value.NumericValue
-                    if hasattr(measured_value, 'MeasurementUnitsCodeSequence'):
-                        unit_code = measured_value.MeasurementUnitsCodeSequence[0]
-                        node['UnitCodeMeaning'] = f"{unit_code.CodeMeaning}"
-                        node['UnitCodeValue'] = f"{unit_code.CodeValue}"
-                        node['UnitCodingSchemeDesignator'] = f"{unit_code.CodingSchemeDesignator}"
-            elif content_item.ValueType == 'CONTAINER':
-                if hasattr(content_item, 'ConceptNameCodeSequence'):
-                    code_seq = content_item.ConceptNameCodeSequence[0]
-                    node['value'] = f"{code_seq.CodeMeaning} ({code_seq.CodeValue} {code_seq.CodingSchemeDesignator})"
-            else:
-                node['value'] = f"ValueType: {content_item.ValueType}"
-            if hasattr(content_item, 'ConceptNameCodeSequence'):
-                code_seq = content_item.ConceptNameCodeSequence[0]
-                node['CodeMeaning'] = f"{code_seq.CodeMeaning}"
-                node['CodeValue'] = f"{code_seq.CodeValue}"
-                node['CodingSchemeDesignator'] = f"{code_seq.CodingSchemeDesignator}"
-        else:
-            node['type'] = 'UNKNOWN'
-            node['value'] = 'Unknown content item'
+        node['type'] = content_item.ValueType
+        
+        # ConceptNameCodeSequence 정보 추출 (모든 타입에 공통)
+        name_info = self._extract_code_sequence_info(content_item, 'ConceptNameCodeSequence')
+        if name_info:
+            node.update({
+                'NameCodeMeaning': name_info['CodeMeaning'],
+                'NameCodeValue': name_info['CodeValue'],
+                'NameCodingSchemeDesignator': name_info['CodingSchemeDesignator']
+            })
+        
+        # ValueType별 처리
+        value_handlers = {
+            'TEXT': self._handle_text_value,
+            'CODE': self._handle_code_value,
+            'NUM': self._handle_num_value,
+            'CONTAINER': self._handle_container_value
+        }
+        
+        handler = value_handlers.get(content_item.ValueType, self._handle_default_value)
+        handler(content_item, node, name_info)
         
         # 관계 정보 추가
         if hasattr(content_item, 'RelationshipType'):
             node['relationship'] = content_item.RelationshipType
         
         return node
+    
+    def _handle_text_value(self, content_item, node, name_info):
+        """TEXT 타입 값 처리"""
+        if hasattr(content_item, 'TextValue') and name_info:
+            node['value'] = f"{name_info['CodeMeaning']} : {content_item.TextValue} ({name_info['CodeValue']} {name_info['CodingSchemeDesignator']})"
+    
+    def _handle_code_value(self, content_item, node, name_info):
+        """CODE 타입 값 처리"""
+        code_info = self._extract_code_sequence_info(content_item, 'ConceptCodeSequence')
+        if code_info:
+            node.update({
+                'CodeMeaning': code_info['CodeMeaning'],
+                'CodeValue': code_info['CodeValue'],
+                'CodingSchemeDesignator': code_info['CodingSchemeDesignator']
+            })
+            if name_info:
+                node['value'] = f"{name_info['CodeMeaning']} ({name_info['CodeValue']} {name_info['CodingSchemeDesignator']}) : {code_info['CodeMeaning']} ({code_info['CodeValue']})"
+    
+    def _handle_num_value(self, content_item, node, name_info):
+        """NUM 타입 값 처리"""
+        if not hasattr(content_item, 'MeasuredValueSequence'):
+            return
+            
+        measured_value = content_item.MeasuredValueSequence[0]
+        if not hasattr(measured_value, 'NumericValue'):
+            return
+            
+        num_value = measured_value.NumericValue
+        
+        # 단위 정보 추출
+        unit_info = self._extract_code_sequence_info(measured_value, 'MeasurementUnitsCodeSequence')
+        if unit_info:
+            node.update({
+                'UnitCodeMeaning': unit_info['CodeMeaning'],
+                'UnitCodeValue': unit_info['CodeValue'],
+                'UnitCodingSchemeDesignator': unit_info['CodingSchemeDesignator']
+            })
+        
+        if name_info:
+            node['value'] = f"{name_info['CodeMeaning']} : {num_value} ({name_info['CodeValue']} {name_info['CodingSchemeDesignator']})"
+    
+    def _handle_container_value(self, content_item, node, name_info):
+        """CONTAINER 타입 값 처리"""
+        if name_info:
+            node['value'] = f"{name_info['CodeMeaning']} ({name_info['CodeValue']} {name_info['CodingSchemeDesignator']})"
+    
+    def _handle_default_value(self, content_item, node, name_info):
+        """기본 ValueType 처리"""
+        node['value'] = f"ValueType: {content_item.ValueType}"
     
     def get_tree(self):
         """
@@ -184,3 +231,51 @@ class DicomSRParser:
         if 'children' in node:
             for child in node['children']:
                 self._search_node(child, search_term, results)
+    
+    def _extract_code_sequence_info(self, item, sequence_name):
+        """
+        CodeSequence에서 정보를 추출합니다.
+        
+        Args:
+            item: DICOM 아이템
+            sequence_name (str): CodeSequence 이름
+            
+        Returns:
+            dict: 추출된 코드 정보 또는 None
+        """
+        if not hasattr(item, sequence_name) or not getattr(item, sequence_name):
+            return None
+            
+        try:
+            code_seq = getattr(item, sequence_name)[0]
+            info = {}
+            
+            # CodeMeaning 체크
+            if (hasattr(code_seq, 'CodeMeaning') and 
+                code_seq.CodeMeaning is not None and 
+                str(code_seq.CodeMeaning).strip()):
+                info['CodeMeaning'] = str(code_seq.CodeMeaning).strip()
+            else:
+                info['CodeMeaning'] = ""
+                
+            # CodeValue 체크
+            if (hasattr(code_seq, 'CodeValue') and 
+                code_seq.CodeValue is not None and 
+                str(code_seq.CodeValue).strip()):
+                info['CodeValue'] = str(code_seq.CodeValue).strip()
+            else:
+                info['CodeValue'] = ""
+                
+            # CodingSchemeDesignator 체크
+            if (hasattr(code_seq, 'CodingSchemeDesignator') and 
+                code_seq.CodingSchemeDesignator is not None and 
+                str(code_seq.CodingSchemeDesignator).strip()):
+                info['CodingSchemeDesignator'] = str(code_seq.CodingSchemeDesignator).strip()
+            else:
+                info['CodingSchemeDesignator'] = ""
+                
+            return info;
+            
+        except Exception as e:
+            self.logger.error(f"Code Sequence 정보 추출 중 오류 발생: {e}")
+            return None

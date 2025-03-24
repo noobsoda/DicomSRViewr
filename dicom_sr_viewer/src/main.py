@@ -196,6 +196,15 @@ class DicomSRViewer(QMainWindow):
         if 'id' in node_data:
             details += f"<p><b>ID:</b> {node_data['id']}</p>"
             
+        if 'NameCodeMeaning' in node_data:
+            details += f"<p><b>NameCodeMeaning:</b> {node_data['NameCodeMeaning']}</p>"
+            
+        if 'NameCodeValue' in node_data:
+            details += f"<p><b>NameCodeValue:</b> {node_data['NameCodeValue']}</p>"
+            
+        if 'NameCodingSchemeDesignator' in node_data:
+            details += f"<p><b>NameCodingSchemeDesignator:</b> {node_data['NameCodingSchemeDesignator']}</p>"
+            
         if 'CodeMeaning' in node_data:
             details += f"<p><b>CodeMeaning:</b> {node_data['CodeMeaning']}</p>"
             

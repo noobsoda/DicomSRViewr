@@ -3,79 +3,107 @@ from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import generate_uid
 from pydicom.sequence import Sequence
 
-# Create a new DICOM SR file
+# 1. DICOM SR 파일 메타데이터 설정
 file_meta = Dataset()
-file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.88.11'  # SOP Class UID for SR
+file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.88.11'  # SR SOP Class
 file_meta.MediaStorageSOPInstanceUID = generate_uid()
 file_meta.TransferSyntaxUID = '1.2.840.10008.1.2.1'  # Explicit VR Little Endian
 
-# Create the main dataset
-ds = FileDataset('dicomSR.dcm', {}, file_meta=file_meta, preamble=b"\0" * 128)
-ds.PatientName = "Test^Patient"
-ds.PatientID = "123456"
+# 2. 기본 DICOM 속성 설정
+ds = FileDataset('structured_report.dcm', {}, file_meta=file_meta, preamble=b"\0" * 128)
+ds.PatientName = "Complex^SR^Test"
+ds.PatientID = "SR-12345"
 ds.Modality = "SR"
-ds.SOPClassUID = '1.2.840.10008.5.1.4.1.1.88.11'  # SOP Class UID for SR
+ds.SOPClassUID = '1.2.840.10008.5.1.4.1.1.88.11'
 ds.SOPInstanceUID = generate_uid()
 
-# Root container
-root_container = Dataset()
-root_container.ValueType = "CONTAINER"
-root_container.ContinuityOfContent = "SEPARATE"
-root_container.ConceptNameCodeSequence = [Dataset()]
-root_container.ConceptNameCodeSequence[0].CodeValue = "121139"
-root_container.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
-root_container.ConceptNameCodeSequence[0].CodeMeaning = "Imaging Measurement Report"
+# 3. 계층 구조 생성 (4-depth + 형제 노드)
+# ------------------------------------------------------------
+### Depth 1: Root Container (보고서 최상위)
+root = Dataset()
+root.ValueType = "CONTAINER"
+root.ContinuityOfContent = "SEPARATE"
+root.ConceptNameCodeSequence = [Dataset()]
+root.ConceptNameCodeSequence[0].CodeValue = "121139"
+root.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
+root.ConceptNameCodeSequence[0].CodeMeaning = "Imaging Report"
 
-# Depth 1: Measurement Group
-measurement_group = Dataset()
-measurement_group.ValueType = "CONTAINER"
-measurement_group.ContinuityOfContent = "SEPARATE"
-measurement_group.ConceptNameCodeSequence = [Dataset()]
-measurement_group.ConceptNameCodeSequence[0].CodeValue = "125007"
-measurement_group.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
-measurement_group.ConceptNameCodeSequence[0].CodeMeaning = "Measurement Group"
+### Depth 2: 형제 노드 2개 (1. Findings / 2. Measurements)
+# --- 형제 노드 1: Findings Section ---
+section_findings = Dataset()
+section_findings.ValueType = "CONTAINER"
+section_findings.ConceptNameCodeSequence = [Dataset()]
+section_findings.ConceptNameCodeSequence[0].CodeValue = "123456"
+section_findings.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
+section_findings.ConceptNameCodeSequence[0].CodeMeaning = "Findings Section"
 
-# Depth 2: Finding
-finding = Dataset()
-finding.ValueType = "TEXT"
-finding.ConceptNameCodeSequence = [Dataset()]
-finding.ConceptNameCodeSequence[0].CodeValue = "121071"
-finding.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
-finding.ConceptNameCodeSequence[0].CodeMeaning = "Finding"
-finding.TextValue = "Abnormal finding detected."
+# --- 형제 노드 2: Measurements Section ---
+section_measurements = Dataset()
+section_measurements.ValueType = "CONTAINER"
+section_measurements.ConceptNameCodeSequence = [Dataset()]
+section_measurements.ConceptNameCodeSequence[0].CodeValue = "789012"
+section_measurements.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
+section_measurements.ConceptNameCodeSequence[0].CodeMeaning = "Measurements Section"
 
-# Depth 3: Measurement
-measurement = Dataset()
-measurement.ValueType = "NUM"
-measurement.ConceptNameCodeSequence = [Dataset()]
-measurement.ConceptNameCodeSequence[0].CodeValue = "112039"
-measurement.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
-measurement.ConceptNameCodeSequence[0].CodeMeaning = "Measurement"
-measurement.MeasuredValueSequence = [Dataset()]
-measurement.MeasuredValueSequence[0].NumericValue = 10.5
-measurement.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [Dataset()]
-measurement.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodeValue = "mm"
-measurement.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodingSchemeDesignator = "UCUM"
-measurement.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodeMeaning = "millimeter"
+### Depth 3: Findings Section 하위 노드 (형제 노드 3개)
+# --- 노드 1: 텍스트 설명 ---
+finding1 = Dataset()
+finding1.ValueType = "TEXT"
+finding1.ConceptNameCodeSequence = [Dataset()]
+finding1.ConceptNameCodeSequence[0].CodeValue = "111001"
+finding1.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
+finding1.ConceptNameCodeSequence[0].CodeMeaning = "Description"
+finding1.TextValue = "Mass detected in the right lung."
 
-# Depth 4: Conclusion
-conclusion = Dataset()
-conclusion.ValueType = "TEXT"
-conclusion.ConceptNameCodeSequence = [Dataset()]
-conclusion.ConceptNameCodeSequence[0].CodeValue = "121070"
-conclusion.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
-conclusion.ConceptNameCodeSequence[0].CodeMeaning = "Conclusion"
-conclusion.TextValue = "Further investigation required."
+# --- 노드 2: 코드화된 진단 ---
+finding2 = Dataset()
+finding2.ValueType = "CODE"
+finding2.ConceptNameCodeSequence = [Dataset()]
+finding2.ConceptNameCodeSequence[0].CodeValue = "111002"
+finding2.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
+finding2.ConceptNameCodeSequence[0].CodeMeaning = "Diagnosis Code"
+finding2.ConceptCodeSequence = [Dataset()]
+finding2.ConceptCodeSequence[0].CodeValue = "RID1032"
+finding2.ConceptCodeSequence[0].CodingSchemeDesignator = "RADLEX"
+finding2.ConceptCodeSequence[0].CodeMeaning = "Pulmonary Nodule"
 
-# Build the hierarchy
-measurement.ContentSequence = [conclusion]  # Depth 4 under Depth 3
-finding.ContentSequence = [measurement]     # Depth 3 under Depth 2
-measurement_group.ContentSequence = [finding]  # Depth 2 under Depth 1
-root_container.ContentSequence = [measurement_group]  # Depth 1 under Root
+# --- 노드 3: 이미지 참조 (예: DICOM 이미지 연결) ---
+finding3 = Dataset()
+finding3.ValueType = "IMAGE"
+finding3.ReferencedSOPSequence = [Dataset()]
+finding3.ReferencedSOPSequence[0].ReferencedSOPClassUID = "1.2.840.10008.5.1.4.1.1.1"  # CT Image
+finding3.ReferencedSOPSequence[0].ReferencedSOPInstanceUID = generate_uid()  # 실제 UID로 교체 필요
 
-# Add the root container to the dataset
-ds.ContentSequence = [root_container]
+### Depth 4: Measurements Section 하위 노드 (형제 노드 2개)
+# --- 노드 1: 측정값 ---
+measurement1 = Dataset()
+measurement1.ValueType = "NUM"
+measurement1.ConceptNameCodeSequence = [Dataset()]
+measurement1.ConceptNameCodeSequence[0].CodeValue = "112039"
+measurement1.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
+measurement1.ConceptNameCodeSequence[0].CodeMeaning = "Size"
+measurement1.MeasuredValueSequence = [Dataset()]
+measurement1.MeasuredValueSequence[0].NumericValue = 8.2
+measurement1.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [Dataset()]
+measurement1.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodeValue = "mm"
+measurement1.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodingSchemeDesignator = "UCUM"
 
-# Save the DICOM SR file
-ds.save_as("dicomSR.dcm")
-print("DICOM SR file created: dicomSR.dcm")
+# --- 노드 2: 측정 방법 ---
+measurement2 = Dataset()
+measurement2.ValueType = "TEXT"
+measurement2.ConceptNameCodeSequence = [Dataset()]
+measurement2.ConceptNameCodeSequence[0].CodeValue = "111003"
+measurement2.ConceptNameCodeSequence[0].CodingSchemeDesignator = "DCM"
+measurement2.ConceptNameCodeSequence[0].CodeMeaning = "Method"
+measurement2.TextValue = "Automated segmentation"
+
+# 4. 계층 구조 연결
+# ------------------------------------------------------------
+section_findings.ContentSequence = [finding1, finding2, finding3]  # Depth 3
+section_measurements.ContentSequence = [measurement1, measurement2]  # Depth 3
+root.ContentSequence = [section_findings, section_measurements]  # Depth 2
+ds.ContentSequence = [root]  # Depth 1 (Root)
+
+# 5. 파일 저장
+ds.save_as("structured_report.dcm")
+print("✅ DICOM SR 파일 생성 완료: structured_report.dcm")
